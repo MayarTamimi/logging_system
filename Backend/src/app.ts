@@ -1,25 +1,19 @@
 import Fastify from "fastify";
 import { logsRoutes } from "./modules/logs/logs.route.js";
-import swagger from "@fastify/swagger";
-import fastifySwaggerUi from "@fastify/swagger-ui";
+import { errorHandler } from "./plugins/error-handler.js";
+import { registerSwagger, registerSwaggerUi } from "./plugins/swagger.js";
 
-const app = Fastify();
-
-app.register(swagger , {
-    openapi : {
-        info : {
-            title: "Log Ingestion API",
-            description: "High volume structured log ingestion service",
-            version: "1.0.0",
-        }
-    }
-})
-
-await app.register(fastifySwaggerUi, {
-    routePrefix: "/docs",
+const app = Fastify({
+    logger : true,
 });
 
-app.register(logsRoutes);
+errorHandler(app)
+
+await registerSwagger(app);
+
+await app.register(logsRoutes);
+
+await registerSwaggerUi(app);
 
 
 export default app;
