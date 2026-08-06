@@ -29,7 +29,7 @@ export const logSchema = z.object({
 });
 
 export const ingestLogsSchema = z.object({
-  logs: z.array(logSchema).min(1, "At least one log is required"),
+  logs: z.array(z.unknown()).min(1, "At least one log is required"),
 });
 
 export type logInput = z.infer<typeof logSchema>;

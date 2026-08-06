@@ -14,29 +14,10 @@ export async function logsRoutes(app: FastifyInstance) {
           properties: {
             logs: {
               type: "array",
+              minItems: 1,
               items: {
                 type: "object",
-                required: ["timestamp", "level", "service", "message"],
-                properties: {
-                  timestamp: {
-                    type: "string",
-                    format: "date-time",
-                  },
-                  level: {
-                    type: "string",
-                    enum: ["debug", "info", "warn", "error"],
-                  },
-                  service: {
-                    type: "string",
-                  },
-                  message: {
-                    type: "string",
-                  },
-                  attributes: {
-                    type: "object",
-                    additionalProperties: true,
-                  },
-                },
+                additionalProperties: true,
               },
             },
           },
