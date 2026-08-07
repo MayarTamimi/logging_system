@@ -14,5 +14,5 @@
 
     "types": ["node"]
   },
-  "include": ["src", "tests/rabbbitMQ/testRabbit.ts"]
+  "include": ["src"]
 }

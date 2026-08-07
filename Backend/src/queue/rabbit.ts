@@ -1,8 +1,8 @@
-import amqp, { Channel, Connection } from "amqplib";
+import amqp, { Channel, ChannelModel } from "amqplib";
 import { env } from "../config/env.js";
 
-let connection= null;
-let channel : any = null;
+let connection: ChannelModel | null = null;
+let channel: Channel | null = null;
 
 export async function getRabbitCHannel() {
   if (channel) return channel;

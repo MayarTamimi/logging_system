@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "worker": "tsx src/worker/index.ts"
   },
   "keywords": [],
   "author": "",
