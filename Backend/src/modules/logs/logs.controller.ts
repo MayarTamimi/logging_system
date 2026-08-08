@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { publishLog } from "../../queue/publisher.js";
 import { ingestLogsSchema } from "./logs.schema.js";
 import { validationLog } from "./logs.validation.js";
@@ -17,7 +18,12 @@ export async function ingestLogsHandler(
 
   const { acceptedLogs, rejectedLogs } = validationLog(body.data.logs);
 
-  await Promise.all(acceptedLogs.map((log) => publishLog(log)));
+  const logsWithIds = acceptedLogs.map((log) => ({
+    ...log,
+    id: randomUUID(),
+  }));
+
+  await Promise.all(logsWithIds.map((log) => publishLog(log)));
 
   if (acceptedLogs.length === 0) {
     return res.status(400).send({

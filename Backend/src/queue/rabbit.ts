@@ -13,3 +13,11 @@ export async function getRabbitCHannel() {
 
   return channel;
 }
+
+export async function closeRabbitConnection() {
+  await channel?.close();
+  await connection?.close();
+
+  channel = null;
+  connection = null;
+}

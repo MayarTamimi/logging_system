@@ -11,5 +11,5 @@ export async function insertLogs(entryLogs: logInput[]) {
       timestamp: new Date(log.timestamp),
       attributes: log.attributes ?? {},
     })),
-  );
+  ).onConflictDoNothing();
 }
