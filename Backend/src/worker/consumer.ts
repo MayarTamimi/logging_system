@@ -9,6 +9,8 @@ export async function startConsumer() {
     durable: true,
   });
 
+  await channel.prefetch(100);
+
   console.log("Worker listening...");
 
   channel.consume(LOG_QUEUE, async (message) => {
