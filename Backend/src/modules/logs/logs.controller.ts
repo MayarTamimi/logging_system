@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { publishLog } from "../../queue/publisher.js";
+import { publishLogs } from "../../queue/publisher.js";
 import { ingestLogsSchema } from "./logs.schema.js";
 import { validationLog } from "./logs.validation.js";
 import { FastifyRequest, FastifyReply } from "fastify";
@@ -23,7 +23,7 @@ export async function ingestLogsHandler(
     id: randomUUID(),
   }));
 
-  await Promise.all(logsWithIds.map((log) => publishLog(log)));
+  await publishLogs(logsWithIds);
 
   if (acceptedLogs.length === 0) {
     return res.status(400).send({
@@ -31,11 +31,6 @@ export async function ingestLogsHandler(
       rejected: rejectedLogs,
     });
   }
-
-  console.log({
-    acceptedLogs,
-    rejectedLogs,
-  });
 
   return res.status(200).send({
     accepted: acceptedLogs.length,

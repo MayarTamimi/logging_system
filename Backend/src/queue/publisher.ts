@@ -1,22 +1,33 @@
+import { once } from "node:events";
 import { LOG_QUEUE } from "./constant.js";
 import { getRabbitCHannel } from "./rabbit.js";
 
-export async function publishLog(log : unknown) { 
-    const channel = await getRabbitCHannel();
+let queueReady: Promise<unknown> | null = null;
 
-    await channel.assertQueue(
-        LOG_QUEUE,
-        {
-            durable : true
-        }
-    )
+export async function publishLogs(logs: unknown[]) {
+  if (logs.length === 0) return;
 
-    channel.sendToQueue(
-        LOG_QUEUE,
-        Buffer.from(JSON.stringify(log)),
-        {
-            persistent : true
-        }
-    )
+  const channel = await getRabbitCHannel();
+
+  queueReady ??= channel.assertQueue(LOG_QUEUE, {
+    durable: true,
+  });
+
+  await queueReady;
+
+  const canContinue = channel.sendToQueue(
+    LOG_QUEUE,
+    Buffer.from(JSON.stringify({ logs })),
+    {
+      persistent: true,
+    },
+  );
+
+  if (!canContinue) {
+    await once(channel, "drain");
+  }
 }
 
+export async function publishLog(log: unknown) {
+  await publishLogs([log]);
+}

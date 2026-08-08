@@ -1,9 +1,21 @@
 import { insertLogs } from "../modules/logs/logs.service.js";
 import { LOG_QUEUE } from "../queue/constant.js";
 import { getRabbitCHannel } from "../queue/rabbit.js";
+import type { ConsumeMessage } from "amqplib";
 
-const BATCH_SIZE = 100;
-const BATCH_TIMEOUT = 1000;
+const PREFETCH = Number(process.env.WORKER_PREFETCH ?? 20);
+const BATCH_MESSAGE_COUNT = Number(process.env.WORKER_BATCH_MESSAGES ?? 20);
+const BATCH_TIMEOUT_MS = Number(process.env.WORKER_BATCH_TIMEOUT_MS ?? 100);
+
+function parseLogBatch(message: ConsumeMessage) {
+  const payload = JSON.parse(message.content.toString());
+
+  if (Array.isArray(payload.logs)) {
+    return payload.logs;
+  }
+
+  return [payload];
+}
 
 export async function startConsumer() {
   const channel = await getRabbitCHannel();
@@ -12,11 +24,11 @@ export async function startConsumer() {
     durable: true,
   });
 
-  await channel.prefetch(BATCH_SIZE);
+  await channel.prefetch(PREFETCH);
 
   console.log("Worker listening...");
 
-  let messages: any[] = [];
+  let messages: ConsumeMessage[] = [];
   let timer: NodeJS.Timeout | null = null;
 
   async function processBatch() {
@@ -33,9 +45,7 @@ export async function startConsumer() {
     }
 
     try {
-      const logs = batch.map((message) =>
-        JSON.parse(message.content.toString()),
-      );
+      const logs = batch.flatMap(parseLogBatch);
 
       await insertLogs(logs);
 
@@ -43,8 +53,9 @@ export async function startConsumer() {
         channel.ack(message);
       }
 
-      console.log(`Batch inserted: ${batch.length}`);
-
+      console.log(
+        `Batch inserted: ${logs.length} logs from ${batch.length} messages`,
+      );
     } catch (error) {
       console.error("Batch processing failed:", error);
 
@@ -60,10 +71,10 @@ export async function startConsumer() {
     messages.push(message);
 
     if (messages.length === 1) {
-      timer = setTimeout(processBatch, BATCH_TIMEOUT);
+      timer = setTimeout(processBatch, BATCH_TIMEOUT_MS);
     }
 
-    if (messages.length >= BATCH_SIZE) {
+    if (messages.length >= BATCH_MESSAGE_COUNT) {
       await processBatch();
     }
   });
