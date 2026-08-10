@@ -4,7 +4,6 @@
   "description": "",
   "main": "index.js",
   "type": "module",
-
   "scripts": {
     "dev": "tsx src/server.ts",
     "build": "tsc",
@@ -12,16 +11,16 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "worker": "tsx src/worker/index.ts"
   },
-
   "keywords": [],
   "author": "",
   "license": "ISC",
-
   "dependencies": {
-    "@fastify/swagger": "^9.x",
-    "@fastify/swagger-ui": "^5.x",
+    "@fastify/swagger": "^9.8.1",
+    "@fastify/swagger-ui": "^5.2.6",
+    "amqplib": "^2.0.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.11.0",
@@ -29,8 +28,8 @@
     "postgres": "^3.4.9",
     "zod": "^4.4.3"
   },
-
   "devDependencies": {
+    "@types/amqplib": "^0.10.8",
     "@types/node": "^26.1.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.5",
@@ -42,7 +41,6 @@
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },
-
   "lint-staged": {
     "*.ts": [
       "eslint --fix",
