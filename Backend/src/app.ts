@@ -16,4 +16,6 @@ await app.register(logsRoutes);
 await registerSwaggerUi(app);
 
 
+
+
 export default app;

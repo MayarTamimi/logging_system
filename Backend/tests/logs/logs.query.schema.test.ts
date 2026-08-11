@@ -110,4 +110,18 @@ describe("GET /logs query schema", () => {
 
     expect(result.success).toBe(false);
   });
+  it("accepts a q parameter", () => {
+    const result = getLogsQueries.safeParse({
+      q: "declined",
+    });
+
+    expect(result.success).toBe(true);
+  });
+  it("accepts an empty q parameter", () => {
+    const result = getLogsQueries.safeParse({
+      q: "",
+    });
+
+    expect(result.success).toBe(true);
+  });
 });

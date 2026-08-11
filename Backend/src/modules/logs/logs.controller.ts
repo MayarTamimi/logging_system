@@ -3,6 +3,8 @@ import { publishLogs } from "../../queue/publisher.js";
 import { ingestLogsSchema } from "./logs.schema.js";
 import { validationLog } from "./logs.validation.js";
 import { FastifyRequest, FastifyReply } from "fastify";
+import { getLogsQueries } from "./logs.query.schema.js";
+import { getLogs } from "./logs.service.js";
 
 export async function ingestLogsHandler(
   req: FastifyRequest,
@@ -36,4 +38,16 @@ export async function ingestLogsHandler(
     accepted: acceptedLogs.length,
     rejected: rejectedLogs,
   });
+}
+
+export async function getLogsHandler(req : FastifyRequest , rep : FastifyReply) {
+    const parsed = getLogsQueries.safeParse(req.query)
+
+    if(!parsed.success) return rep.status(400).send({error: parsed.error.issues[0]?.message ?? "Invalid query parameters"})
+    
+    const res = await getLogs(parsed.data)
+    return rep.status(200).send({
+      logs: res.slice(0, parsed.data.limit),
+      next_cursor: null,
+    })
 }
