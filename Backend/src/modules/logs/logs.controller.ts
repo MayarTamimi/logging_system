@@ -40,14 +40,25 @@ export async function ingestLogsHandler(
   });
 }
 
-export async function getLogsHandler(req : FastifyRequest , rep : FastifyReply) {
-    const parsed = getLogsQueries.safeParse(req.query)
+export async function getLogsHandler(req: FastifyRequest, rep: FastifyReply) {
+  try {
+    const parsed = getLogsQueries.safeParse(req.query);
 
-    if(!parsed.success) return rep.status(400).send({error: parsed.error.issues[0]?.message ?? "Invalid query parameters"})
-    
-    const res = await getLogs(parsed.data)
+    if (!parsed.success)
+      return rep.status(400).send({
+        error: parsed.error.issues[0]?.message ?? "Invalid query parameters",
+      });
+
+    const res = await getLogs(parsed.data);
     return rep.status(200).send({
       logs: res.slice(0, parsed.data.limit),
       next_cursor: null,
-    })
+    });
+  } catch (error) {
+    console.error("GET /logs error:", error);
+
+    return rep.status(500).send({
+      error: "Internal server error",
+    });
+  }
 }

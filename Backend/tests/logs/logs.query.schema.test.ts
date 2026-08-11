@@ -124,4 +124,57 @@ describe("GET /logs query schema", () => {
 
     expect(result.success).toBe(true);
   });
+
+  // attr test
+  it("accepts an attribute filter", () => {
+    const result = getLogsQueries.safeParse({
+      "attr.user_id": "42",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts multiple attribute filters", () => {
+    const result = getLogsQueries.safeParse({
+      "attr.user_id": "42",
+      "attr.region": "PS",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an attribute filter with a numeric value", () => {
+    const result = getLogsQueries.safeParse({
+      "attr.user_id": 42,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an attribute filter with a boolean value", () => {
+    const result = getLogsQueries.safeParse({
+      "attr.active": true,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an attribute filter combined with other filters", () => {
+    const result = getLogsQueries.safeParse({
+      service: "checkout",
+      level: "error",
+      q: "declined",
+      "attr.user_id": "42",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an unsupported query parameter", () => {
+    const result = getLogsQueries.safeParse({
+      unknown: "value",
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
