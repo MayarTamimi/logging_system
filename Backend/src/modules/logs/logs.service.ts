@@ -2,7 +2,8 @@ import { logInput } from "./logs.schema.js";
 import { db } from "../../db/index.js";
 import { logs } from "../../db/schema.js";
 import { GetLogsQuery } from "./logs.query.schema.js";
-import { and, desc, eq, gte, ilike, sql, lt } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, sql, lt, or } from "drizzle-orm";
+import { decodeCursor } from "./logs.cursor.js";
 
 export async function insertLogs(entryLogs: logInput[]) {
   if (entryLogs.length === 0) return;
@@ -21,12 +22,28 @@ export async function insertLogs(entryLogs: logInput[]) {
 
 export async function getLogs(query: GetLogsQuery) {
   const condition = [];
+  let cursor;
 
   if (query.service) condition.push(eq(logs.service, query.service));
   if (query.level) condition.push(eq(logs.level, query.level));
   if (query.since) condition.push(gte(logs.timestamp, new Date(query.since)));
   if (query.until) condition.push(lt(logs.timestamp, new Date(query.until)));
   if (query.q) condition.push(ilike(logs.message, `%${query.q}%`));
+  if (query.cursor) {
+    cursor = decodeCursor(query.cursor);
+
+    condition.push(
+      or(
+        lt(logs.timestamp, new Date(cursor.timestamp)),
+
+        and(
+          eq(logs.timestamp, new Date(cursor.timestamp)),
+
+          lt(logs.id, cursor.id),
+        ),
+      ),
+    );
+  }
 
   for (const [key, value] of Object.entries(query)) {
     if (!key.startsWith("attr.")) {
