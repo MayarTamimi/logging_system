@@ -102,4 +102,58 @@ export async function aggLogs(query: AggLogsQuery) {
       throw new Error("Unsupported bucket");
   }
 
+  const condition = [
+    gte(logs.timestamp, new Date(query.since)),
+    lt(logs.timestamp, new Date(query.until)),
+  ];
+
+  if (query.service) condition.push(eq(logs.service, query.service));
+  if (query.level) condition.push(eq(logs.level, query.level));
+  if (query.q) condition.push(ilike(logs.message, `%${query.q}%`));
+
+  for (const [key, value] of Object.entries(query)) {
+    if (!key.startsWith("attr.")) {
+      continue;
+    }
+
+    const attributeKey = key.slice(5);
+
+    condition.push(
+      sql`${logs.attributes} ->> ${attributeKey} = ${String(value)}`,
+    );
+  }
+
+  const group =
+    query.group_by === "service" ? logs.service : logs.level;
+
+  const rows = query.group_by
+    ? await db
+        .select({
+          start: bucket,
+          group,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(logs)
+        .where(and(...condition))
+        .groupBy(bucket, group)
+        .orderBy(bucket, group)
+    : await db
+        .select({
+          start: bucket,
+          group: sql<null>`null`,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(logs)
+        .where(and(...condition))
+        .groupBy(bucket)
+        .orderBy(bucket);
+
+  return rows.map((row) => ({
+    start:
+      row.start instanceof Date
+        ? row.start.toISOString().replace(".000Z", "Z")
+        : new Date(String(row.start)).toISOString().replace(".000Z", "Z"),
+    group: row.group,
+    count: Number(row.count),
+  }));
 }
