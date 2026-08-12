@@ -4,7 +4,7 @@ import { logs } from "../../db/schema.js";
 import { GetLogsQuery } from "./logs.query.schema.js";
 import { and, desc, eq, gte, ilike, sql, lt, or } from "drizzle-orm";
 import { decodeCursor } from "./logs.cursor.js";
-
+import { AggLogsQuery } from "./logs.aggregate.schema.js";
 export async function insertLogs(entryLogs: logInput[]) {
   if (entryLogs.length === 0) return;
 
@@ -65,4 +65,41 @@ export async function getLogs(query: GetLogsQuery) {
     .limit(query.limit + 1);
 
   return res;
+}
+
+export async function aggLogs(query: AggLogsQuery) {
+  let bucket;
+
+  switch (query.bucket) {
+    case "1m":
+      bucket = sql`
+        date_trunc('minute', ${logs.timestamp})
+      `;
+      break;
+
+    case "5m":
+      bucket = sql`
+        date_trunc('hour', ${logs.timestamp})
+        + floor(
+            extract(minute from ${logs.timestamp}) / 5
+          ) * interval '5 minutes'
+      `;
+      break;
+
+    case "1h":
+      bucket = sql`
+        date_trunc('hour', ${logs.timestamp})
+      `;
+      break;
+
+    case "1d":
+      bucket = sql`
+        date_trunc('day', ${logs.timestamp})
+      `;
+      break;
+
+    default:
+      throw new Error("Unsupported bucket");
+  }
+
 }
