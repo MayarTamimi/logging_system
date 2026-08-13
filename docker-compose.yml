@@ -8,6 +8,10 @@ services:
       PORT: 8080
       FASTIFY_LOGGER: "false"
       AUTH_ENABLED: "false"
+      LOG_RETENTION_ENABLED: "true"
+      LOG_RETENTION_DAYS: 30
+      LOG_RETENTION_CLEANUP_INTERVAL_MS: 3600000
+      LOG_RETENTION_BATCH_SIZE: 50000
       DATABASE_URL: postgres://postgres:password@postgres:5432/logs
       RABBITMQ_URL: amqp://rabbitmq:5672
     ports:

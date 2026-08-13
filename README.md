@@ -89,6 +89,23 @@ Auth error responses keep the standard shape:
 | Valid credential, insufficient scope | 403 | `{"error":"<description>"}` |
 | Rate limit or quota exceeded | 429 | `{"error":"<description>"}` plus `Retry-After` |
 
+## Retention
+
+Logs are deleted according to a configurable retention policy. The default
+Compose policy keeps 30 days of data and runs cleanup once per hour:
+
+```env
+LOG_RETENTION_ENABLED=true
+LOG_RETENTION_DAYS=30
+LOG_RETENTION_CLEANUP_INTERVAL_MS=3600000
+LOG_RETENTION_BATCH_SIZE=50000
+```
+
+Expiration is based on the log `timestamp` field. Each cleanup pass deletes up
+to `LOG_RETENTION_BATCH_SIZE` expired rows, so old backlogs are removed
+gradually instead of one large unbounded delete. The API process owns the
+cleanup job; worker scaling does not create extra cleanup schedulers.
+
 ## Metrics to watch
 
 - RabbitMQ queue depth and message publish/ack rates.
@@ -96,3 +113,4 @@ Auth error responses keep the standard shape:
 - API CPU, event loop saturation, request latency, and failed thresholds.
 - Worker CPU, insert latency, and whether queue depth drains after each stress stage.
 - Load-test rejected/failed requests and p95/p99 latency.
+- Retention cleanup delete count and Postgres I/O during cleanup windows.
