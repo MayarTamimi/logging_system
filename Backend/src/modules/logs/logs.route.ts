@@ -1,5 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { getLogsHandler, ingestLogsHandler } from "./logs.controller.js";
+import {
+  aggregateLogsHandler,
+  getLogsHandler,
+  ingestLogsHandler,
+} from "./logs.controller.js";
 
 export async function logsRoutes(app: FastifyInstance) {
   app.post(
@@ -44,6 +48,81 @@ export async function logsRoutes(app: FastifyInstance) {
       },
     },
     ingestLogsHandler,
+  );
+
+  app.get(
+    "/logs/aggregate",
+    {
+      schema: {
+        summary: "Aggregate logs",
+        description: "Return time-bucketed log counts",
+
+        querystring: {
+          type: "object",
+          required: ["since", "until", "bucket"],
+          properties: {
+            since: {
+              type: "string",
+              format: "date-time",
+            },
+            until: {
+              type: "string",
+              format: "date-time",
+            },
+            bucket: {
+              type: "string",
+              enum: ["1m", "5m", "1h", "1d"],
+            },
+            group_by: {
+              type: "string",
+              enum: ["service", "level"],
+            },
+            service: {
+              type: "string",
+            },
+            level: {
+              type: "string",
+              enum: ["debug", "info", "warn", "error"],
+            },
+            q: {
+              type: "string",
+            },
+          },
+          additionalProperties: true,
+        },
+
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              buckets: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    start: { type: "string", format: "date-time" },
+                    group: { type: ["string", "null"] },
+                    count: { type: "number" },
+                  },
+                  required: ["start", "group", "count"],
+                },
+              },
+            },
+            required: ["buckets"],
+          },
+          400: {
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+            required: ["error"],
+          },
+        },
+      },
+    },
+    aggregateLogsHandler,
   );
 
   app.get(
