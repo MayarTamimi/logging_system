@@ -6,13 +6,24 @@ Fastify + RabbitMQ + Postgres log ingestion backend.
 
 The API publishes log batches to a durable RabbitMQ queue using persistent messages. Workers consume from the queue and insert logs into Postgres in batches.
 
-Start the stack with one worker:
+Start the stack with the worker replica count configured in
+`docker-compose.yml`:
 
 ```sh
 docker compose up --build
 ```
 
-Scale workers when RabbitMQ queue depth grows faster than Postgres can drain:
+The default Compose file uses two worker replicas:
+
+```yaml
+worker:
+  deploy:
+    replicas: 2
+```
+
+Change `replicas` to `1`, `2`, or `3` before deploying if your load-test
+environment runs the Compose file as-is. You can also override it manually when
+running locally:
 
 ```sh
 docker compose up --scale worker=2
