@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { env } from "./config/env.js";
+import { seedLoadgenApiKey } from "./modules/auth/auth.service.js";
 import { healthRoutes } from "./modules/health/health.route.js";
 import { logsRoutes } from "./modules/logs/logs.route.js";
 import { errorHandler } from "./plugins/error-handler.js";
@@ -10,6 +11,8 @@ const app = Fastify({
 });
 
 errorHandler(app);
+
+await seedLoadgenApiKey();
 
 await registerSwagger(app);
 

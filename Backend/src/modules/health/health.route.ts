@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import { env } from "../../config/env.js";
 import { db } from "../../db/index.js";
 import { LOG_QUEUE } from "../../queue/constant.js";
 import { getRabbitCHannel } from "../../queue/rabbit.js";
@@ -13,6 +14,18 @@ async function isReady() {
 
   if (!migrationCheck?.logs_table_exists) {
     throw new Error("Database migrations have not been applied");
+  }
+
+  if (env.AUTH_ENABLED) {
+    const [authCheck] = await db.execute<{
+      api_keys_table_exists: boolean;
+    }>(sql`
+      select to_regclass('public.api_keys') is not null as api_keys_table_exists
+    `);
+
+    if (!authCheck?.api_keys_table_exists) {
+      throw new Error("Auth migrations have not been applied");
+    }
   }
 
   const channel = await getRabbitCHannel();

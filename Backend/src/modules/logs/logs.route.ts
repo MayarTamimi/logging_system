@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { requireAuthScope } from "../auth/auth.service.js";
 import {
   aggregateLogsHandler,
   getLogsHandler,
@@ -9,6 +10,7 @@ export async function logsRoutes(app: FastifyInstance) {
   app.post(
     "/logs",
     {
+      preHandler: requireAuthScope("ingest"),
       schema: {
         summary: "Ingest logs",
         description: "Accept a batch of structured logs",
@@ -53,6 +55,7 @@ export async function logsRoutes(app: FastifyInstance) {
   app.get(
     "/logs/aggregate",
     {
+      preHandler: requireAuthScope("query"),
       schema: {
         summary: "Aggregate logs",
         description: "Return time-bucketed log counts",
@@ -128,6 +131,7 @@ export async function logsRoutes(app: FastifyInstance) {
   app.get(
     "/logs",
     {
+      preHandler: requireAuthScope("query"),
       schema: {
         summary: "Query logs",
         description: "Query stored logs using optional filters",

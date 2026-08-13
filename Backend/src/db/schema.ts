@@ -5,7 +5,9 @@ import {
   varchar,
   text,
   jsonb,
+  boolean,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const logs = pgTable(
@@ -32,4 +34,17 @@ export const logs = pgTable(
   ],
 );
 
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    keyHash: varchar("key_hash", { length: 64 }).notNull(),
+    canIngest: boolean("can_ingest").default(false).notNull(),
+    canQuery: boolean("can_query").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [uniqueIndex("apiKeysKeyHashIdx").on(t.keyHash)],
+);
 
