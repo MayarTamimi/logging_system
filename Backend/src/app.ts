@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { env } from "./config/env.js";
+import { healthRoutes } from "./modules/health/health.route.js";
 import { logsRoutes } from "./modules/logs/logs.route.js";
 import { errorHandler } from "./plugins/error-handler.js";
 import { registerSwagger, registerSwaggerUi } from "./plugins/swagger.js";
@@ -11,6 +12,8 @@ const app = Fastify({
 errorHandler(app);
 
 await registerSwagger(app);
+
+await app.register(healthRoutes);
 
 await app.register(logsRoutes);
 
