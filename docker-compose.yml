@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: 8080
+      FASTIFY_LOGGER: "false"
       DATABASE_URL: postgres://postgres:password@postgres:5432/logs
       RABBITMQ_URL: amqp://rabbitmq:5672
     ports:
@@ -30,12 +31,17 @@ services:
   worker:
     build:
       context: ./Backend
-    container_name: logs-worker
+    deploy:
+      replicas: 2
     restart: unless-stopped
     command: ["node", "dist/worker/index.js"]
     environment:
       DATABASE_URL: postgres://postgres:password@postgres:5432/logs
       RABBITMQ_URL: amqp://rabbitmq:5672
+      WORKER_PREFETCH: 1000
+      WORKER_BATCH_MESSAGES: 500
+      WORKER_BATCH_TIMEOUT_MS: 50
+      WORKER_LOG_BATCHES: "false"
     depends_on:
       migrate:
         condition: service_completed_successfully

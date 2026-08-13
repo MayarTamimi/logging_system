@@ -3,9 +3,24 @@ import { LOG_QUEUE } from "../queue/constant.js";
 import { getRabbitCHannel } from "../queue/rabbit.js";
 import type { ConsumeMessage } from "amqplib";
 
-const PREFETCH = Number(process.env.WORKER_PREFETCH ?? 20);
-const BATCH_MESSAGE_COUNT = Number(process.env.WORKER_BATCH_MESSAGES ?? 20);
-const BATCH_TIMEOUT_MS = Number(process.env.WORKER_BATCH_TIMEOUT_MS ?? 100);
+function readPositiveIntEnv(name: string, defaultValue: number) {
+  const value = Number(process.env[name]);
+
+  return Number.isInteger(value) && value > 0 ? value : defaultValue;
+}
+
+function readBooleanEnv(name: string, defaultValue: boolean) {
+  const value = process.env[name];
+
+  if (value === undefined) return defaultValue;
+
+  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+}
+
+const PREFETCH = readPositiveIntEnv("WORKER_PREFETCH", 1000);
+const BATCH_MESSAGE_COUNT = readPositiveIntEnv("WORKER_BATCH_MESSAGES", 500);
+const BATCH_TIMEOUT_MS = readPositiveIntEnv("WORKER_BATCH_TIMEOUT_MS", 50);
+const LOG_BATCHES = readBooleanEnv("WORKER_LOG_BATCHES", false);
 
 function parseLogBatch(message: ConsumeMessage) {
   const payload = JSON.parse(message.content.toString());
@@ -26,41 +41,84 @@ export async function startConsumer() {
 
   await channel.prefetch(PREFETCH);
 
-  console.log("Worker listening...");
+  console.log(
+    `Worker listening with prefetch=${PREFETCH}, batchMessages=${BATCH_MESSAGE_COUNT}, batchTimeoutMs=${BATCH_TIMEOUT_MS}`,
+  );
 
   let messages: ConsumeMessage[] = [];
   let timer: NodeJS.Timeout | null = null;
+  let processing = false;
 
-  async function processBatch() {
-    if (messages.length === 0) {
-      return;
-    }
-
-    const batch = messages;
-    messages = [];
-
+  function clearBatchTimer() {
     if (timer) {
       clearTimeout(timer);
       timer = null;
     }
+  }
 
-    try {
-      const logs = batch.flatMap(parseLogBatch);
+  function armBatchTimer() {
+    if (!timer) {
+      timer = setTimeout(() => {
+        processBatches(true).catch((error) => {
+          console.error("Batch processing failed:", error);
+        });
+      }, BATCH_TIMEOUT_MS);
+    }
+  }
 
-      await insertLogs(logs);
+  async function processBatch(batch: ConsumeMessage[]) {
+    const logs = batch.flatMap(parseLogBatch);
 
-      for (const message of batch) {
-        channel.ack(message);
-      }
+    await insertLogs(logs);
 
+    for (const message of batch) {
+      channel.ack(message);
+    }
+
+    if (LOG_BATCHES) {
       console.log(
         `Batch inserted: ${logs.length} logs from ${batch.length} messages`,
       );
-    } catch (error) {
-      console.error("Batch processing failed:", error);
+    }
+  }
 
-      for (const message of batch) {
-        channel.nack(message, false, true);
+  async function processBatches(force = false) {
+    if (processing || messages.length === 0) {
+      return;
+    }
+
+    if (!force && messages.length < BATCH_MESSAGE_COUNT) {
+      armBatchTimer();
+      return;
+    }
+
+    processing = true;
+    clearBatchTimer();
+
+    try {
+      while (
+        messages.length > 0 &&
+        (force || messages.length >= BATCH_MESSAGE_COUNT)
+      ) {
+        const batch = messages.splice(0, BATCH_MESSAGE_COUNT);
+
+        try {
+          await processBatch(batch);
+        } catch (error) {
+          console.error("Batch processing failed:", error);
+
+          for (const message of batch) {
+            channel.nack(message, false, true);
+          }
+        }
+      }
+    } finally {
+      processing = false;
+
+      if (messages.length >= BATCH_MESSAGE_COUNT) {
+        void processBatches();
+      } else if (messages.length > 0) {
+        armBatchTimer();
       }
     }
   }
@@ -70,12 +128,10 @@ export async function startConsumer() {
 
     messages.push(message);
 
-    if (messages.length === 1) {
-      timer = setTimeout(processBatch, BATCH_TIMEOUT_MS);
-    }
-
     if (messages.length >= BATCH_MESSAGE_COUNT) {
-      await processBatch();
+      void processBatches();
+    } else {
+      armBatchTimer();
     }
   });
 }
