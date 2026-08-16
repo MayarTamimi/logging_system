@@ -13,7 +13,7 @@ export function validationLog(logs : any[]) {
         const res = logSchema.safeParse(log)
 
         if(res.success) {
-            acceptedLogs.push(log)
+            acceptedLogs.push(res.data)
         } else {
             rejectedLogs.push({
                 index : idx,

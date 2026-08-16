@@ -1,6 +1,6 @@
 import { insertLogs } from "../modules/logs/logs.service.js";
 import { LOG_QUEUE } from "../queue/constant.js";
-import { getRabbitCHannel } from "../queue/rabbit.js";
+import { getRabbitCHanel } from "../queue/rabbit.js";
 import type { ConsumeMessage } from "amqplib";
 
 function readPositiveIntEnv(name: string, defaultValue: number) {
@@ -33,7 +33,7 @@ function parseLogBatch(message: ConsumeMessage) {
 }
 
 export async function startConsumer() {
-  const channel = await getRabbitCHannel();
+  const channel = await getRabbitCHanel();
 
   await channel.assertQueue(LOG_QUEUE, {
     durable: true,
@@ -123,7 +123,7 @@ export async function startConsumer() {
     }
   }
 
-  channel.consume(LOG_QUEUE, async (message) => {
+  channel.consume(LOG_QUEUE, async (message: ConsumeMessage | null) => {
     if (!message) return;
 
     messages.push(message);

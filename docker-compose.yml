@@ -46,7 +46,7 @@ services:
       WORKER_PREFETCH: 1000
       WORKER_BATCH_MESSAGES: 500
       WORKER_BATCH_TIMEOUT_MS: 50
-      WORKER_LOG_BATCHES: "false"
+      WORKER_LOG_BATCHES: "true"
     depends_on:
       migrate:
         condition: service_completed_successfully

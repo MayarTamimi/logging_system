@@ -7,7 +7,7 @@ let connectionPromise: Promise<ChannelModel> | null = null;
 let channelPromise: Promise<Channel> | null = null;
 const connectionTimeoutMs = Number(process.env.RABBITMQ_CONNECTION_TIMEOUT_MS ?? 3000);
 
-export async function getRabbitCHannel() {
+export async function getRabbitCHanel() {
   if (channel) return channel;
 
   try {

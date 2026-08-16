@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { env } from "../../config/env.js";
 import { db } from "../../db/index.js";
 import { LOG_QUEUE } from "../../queue/constant.js";
-import { getRabbitCHannel } from "../../queue/rabbit.js";
+import { getRabbitCHanel } from "../../queue/rabbit.js";
 
 async function isReady() {
   const [migrationCheck] = await db.execute<{
@@ -28,20 +28,42 @@ async function isReady() {
     }
   }
 
-  const channel = await getRabbitCHannel();
+  const channel = await getRabbitCHanel();
 
   await channel.assertQueue(LOG_QUEUE, {
     durable: true,
   });
+
+  let queueInfo: { messageCount: number; consumerCount: number } | null = null;
+  try {
+    const q = await (channel as any).checkQueue(LOG_QUEUE);
+    queueInfo = {
+      messageCount: q.messageCount,
+      consumerCount: q.consumerCount,
+    };
+  } catch {
+    // checkQueue not available
+  }
+
+  return {
+    queue: queueInfo
+      ? {
+          name: LOG_QUEUE,
+          messageCount: queueInfo.messageCount,
+          consumerCount: queueInfo.consumerCount,
+        }
+      : undefined,
+  };
 }
 
 export async function healthRoutes(app: FastifyInstance) {
   app.get("/health", async (_req, reply) => {
     try {
-      await isReady();
+      const queueInfo = await isReady();
 
       return reply.status(200).send({
         status: "ok",
+        ...queueInfo,
       });
     } catch (error) {
       app.log.error({ error }, "Health check failed");
