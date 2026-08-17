@@ -1,4 +1,4 @@
-import { insertLogs } from "../modules/logs/logs.service.js";
+import { insertLogsWithCounts } from "../modules/logs/logs.service.js";
 import { LOG_QUEUE } from "../queue/constant.js";
 import { getRabbitCHanel } from "../queue/rabbit.js";
 import type { Channel, ConsumeMessage } from "amqplib";
@@ -69,7 +69,7 @@ function buildBatchProcessor(channel: Channel) {
   async function processBatch(batch: ConsumeMessage[]) {
     const logs = batch.flatMap(parseLogBatch);
 
-    await insertLogs(logs);
+    await insertLogsWithCounts(logs);
 
     for (const message of batch) {
       channel.ack(message);

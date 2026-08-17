@@ -8,6 +8,8 @@ import {
   boolean,
   index,
   uniqueIndex,
+  primaryKey,
+  bigint,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -25,25 +27,23 @@ export const logs = pgTable(
       .notNull(),
   },
   (t) => [
-    index("logsTimestamepIdx").on(t.timestamp),
-
-    index("logsIdx").on( // index on level, service, timestamp
-      t.service,
-      t.level,
-      t.timestamp,
-    ),
-
     index("logsTimestampIdIdx").on(t.timestamp, t.id),
 
     index("logsServiceTimestampIdx").on(t.service, t.timestamp),
 
     index("logsLevelTimestampIdx").on(t.level, t.timestamp),
-
-    index("logsMessageTrgmIdx").using(
-      "gin",
-      sql`${t.message} gin_trgm_ops`,
-    ),
   ],
+);
+
+export const logCounts = pgTable(
+  "log_counts",
+  {
+    bucket: timestamp("bucket", { withTimezone: true }).notNull(),
+    service: varchar("service", { length: 100 }).notNull(),
+    level: varchar("level", { length: 10 }).notNull(),
+    count: bigint("count", { mode: "number" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.bucket, t.service, t.level] })],
 );
 
 export const apiKeys = pgTable(

@@ -1,6 +1,6 @@
 import { logInput } from "./logs.schema.js";
 import { db } from "../../db/index.js";
-import { logs } from "../../db/schema.js";
+import { logs, logCounts } from "../../db/schema.js";
 import { GetLogsQuery } from "./logs.query.schema.js";
 import { and, desc, eq, gte, ilike, sql, lt, or } from "drizzle-orm";
 import { decodeCursor } from "./logs.cursor.js";
@@ -16,23 +16,68 @@ function messageSearch(value: string) {
 
 const INSERT_CHUNK_SIZE = 1000;
 
+function normalizeLogs(entryLogs: logInput[]) {
+  return entryLogs.map((log) => ({
+    ...log,
+    timestamp: new Date(log.timestamp),
+    attributes: log.attributes ?? {},
+  }));
+}
+
 export async function insertLogs(entryLogs: logInput[]) {
   if (entryLogs.length === 0) return;
 
-  for (let i = 0; i < entryLogs.length; i += INSERT_CHUNK_SIZE) {
-    const chunk = entryLogs.slice(i, i + INSERT_CHUNK_SIZE);
+  const rows = normalizeLogs(entryLogs);
 
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
     await db
       .insert(logs)
-      .values(
-        chunk.map((log) => ({
-          ...log,
-          timestamp: new Date(log.timestamp),
-          attributes: log.attributes ?? {},
-        })),
-      )
+      .values(rows.slice(i, i + INSERT_CHUNK_SIZE))
       .onConflictDoNothing();
   }
+}
+
+export async function insertLogsWithCounts(entryLogs: logInput[]) {
+  if (entryLogs.length === 0) return;
+
+  const rows = normalizeLogs(entryLogs);
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+      await tx
+        .insert(logs)
+        .values(rows.slice(i, i + INSERT_CHUNK_SIZE))
+        .onConflictDoNothing();
+    }
+
+    const counts = new Map<string, number>();
+
+    for (const log of rows) {
+      const minute = new Date(
+        Math.floor(log.timestamp.getTime() / 60_000) * 60_000,
+      );
+
+      const key = `${minute.toISOString()}\u0000${log.service}\u0000${log.level}`;
+
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    const countRows = [...counts.entries()].map(([key, count]) => {
+      const [bucket, service, level] = key.split("\u0000");
+
+      return { bucket: new Date(bucket), service, level, count };
+    });
+
+    for (let i = 0; i < countRows.length; i += INSERT_CHUNK_SIZE) {
+      await tx
+        .insert(logCounts)
+        .values(countRows.slice(i, i + INSERT_CHUNK_SIZE))
+        .onConflictDoUpdate({
+          target: [logCounts.bucket, logCounts.service, logCounts.level],
+          set: { count: sql`${logCounts.count} + excluded.count` },
+        });
+    }
+  });
 }
 
 export async function getLogs(query: GetLogsQuery) {
@@ -83,6 +128,101 @@ export async function getLogs(query: GetLogsQuery) {
 }
 
 export async function aggLogs(query: AggLogsQuery) {
+  const hasRawFilters =
+    query.q !== undefined ||
+    Object.keys(query).some((key) => key.startsWith("attr."));
+
+  if (hasRawFilters) {
+    return aggLogsFromLogs(query);
+  }
+
+  return aggLogsFromCounts(query);
+}
+
+function bucketExpression(
+  column: typeof logCounts.bucket,
+  bucket: AggLogsQuery["bucket"],
+) {
+  switch (bucket) {
+    case "1m":
+      return column;
+
+    case "5m":
+      return sql`
+        date_trunc('hour', ${column})
+        + floor(
+            extract(minute from ${column}) / 5
+          ) * interval '5 minutes'
+      `;
+
+    case "1h":
+      return sql`
+        date_trunc('hour', ${column})
+      `;
+
+    case "1d":
+      return sql`
+        date_trunc('day', ${column})
+      `;
+
+    default:
+      throw new Error("Unsupported bucket");
+  }
+}
+
+async function aggLogsFromCounts(query: AggLogsQuery) {
+  const since = new Date(query.since);
+  const until = new Date(query.until);
+
+  const sinceBucket = new Date(
+    Math.floor(since.getTime() / 60_000) * 60_000,
+  );
+
+  const condition = [
+    gte(logCounts.bucket, sinceBucket),
+    lt(logCounts.bucket, until),
+  ];
+
+  if (query.service) condition.push(eq(logCounts.service, query.service));
+  if (query.level) condition.push(eq(logCounts.level, query.level));
+
+  const bucket = bucketExpression(logCounts.bucket, query.bucket);
+
+  const group = query.group_by === "service" ? logCounts.service : logCounts.level;
+
+  const rows = query.group_by
+    ? await db
+        .select({
+          start: bucket,
+          group,
+          count: sql<number>`sum(${logCounts.count})::int`,
+        })
+        .from(logCounts)
+        .where(and(...condition))
+        .groupBy(bucket, group)
+        .orderBy(bucket, group)
+    : await db
+        .select({
+          start: bucket,
+          group: sql<null>`null`,
+          count: sql<number>`sum(${logCounts.count})::int`,
+        })
+        .from(logCounts)
+        .where(and(...condition))
+        .groupBy(bucket)
+        .orderBy(bucket);
+
+  return rows.map((row) => ({
+    start:
+      row.start instanceof Date
+        ? row.start.toISOString().replace(".000Z", "Z")
+        : new Date(String(row.start)).toISOString().replace(".000Z", "Z"),
+    group: row.group,
+    count: Number(row.count),
+  }));
+}
+
+async function aggLogsFromLogs(query: AggLogsQuery) {
   let bucket;
 
   switch (query.bucket) {
