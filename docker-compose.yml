@@ -37,7 +37,7 @@ services:
     build:
       context: ./Backend
     deploy:
-      replicas: 2
+      replicas: 3
     restart: unless-stopped
     command: ["node", "dist/worker/index.js"]
     environment:
