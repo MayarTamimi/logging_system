@@ -45,6 +45,12 @@ export async function logsRoutes(app: FastifyInstance) {
 
           400: {
             type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+            required: ["error"],
           },
         },
       },
