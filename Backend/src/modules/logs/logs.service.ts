@@ -5,19 +5,34 @@ import { GetLogsQuery } from "./logs.query.schema.js";
 import { and, desc, eq, gte, ilike, sql, lt, or } from "drizzle-orm";
 import { decodeCursor } from "./logs.cursor.js";
 import { AggLogsQuery } from "./logs.aggregate.schema.js";
+
+function escapeLike(value: string) {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
+function messageSearch(value: string) {
+  return ilike(logs.message, `%${escapeLike(value)}%`);
+}
+
+const INSERT_CHUNK_SIZE = 1000;
+
 export async function insertLogs(entryLogs: logInput[]) {
   if (entryLogs.length === 0) return;
 
-  await db
-    .insert(logs)
-    .values(
-      entryLogs.map((log) => ({
-        ...log,
-        timestamp: new Date(log.timestamp),
-        attributes: log.attributes ?? {},
-      })),
-    )
-    .onConflictDoNothing();
+  for (let i = 0; i < entryLogs.length; i += INSERT_CHUNK_SIZE) {
+    const chunk = entryLogs.slice(i, i + INSERT_CHUNK_SIZE);
+
+    await db
+      .insert(logs)
+      .values(
+        chunk.map((log) => ({
+          ...log,
+          timestamp: new Date(log.timestamp),
+          attributes: log.attributes ?? {},
+        })),
+      )
+      .onConflictDoNothing();
+  }
 }
 
 export async function getLogs(query: GetLogsQuery) {
@@ -28,7 +43,7 @@ export async function getLogs(query: GetLogsQuery) {
   if (query.level) condition.push(eq(logs.level, query.level));
   if (query.since) condition.push(gte(logs.timestamp, new Date(query.since)));
   if (query.until) condition.push(lt(logs.timestamp, new Date(query.until)));
-  if (query.q) condition.push(ilike(logs.message, `%${query.q}%`));
+  if (query.q) condition.push(messageSearch(query.q));
   if (query.cursor) {
     cursor = decodeCursor(query.cursor);
 
@@ -109,7 +124,7 @@ export async function aggLogs(query: AggLogsQuery) {
 
   if (query.service) condition.push(eq(logs.service, query.service));
   if (query.level) condition.push(eq(logs.level, query.level));
-  if (query.q) condition.push(ilike(logs.message, `%${query.q}%`));
+  if (query.q) condition.push(messageSearch(query.q));
 
   for (const [key, value] of Object.entries(query)) {
     if (!key.startsWith("attr.")) {

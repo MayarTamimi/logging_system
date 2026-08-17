@@ -4,9 +4,16 @@ import { getRabbitCHanel } from "./rabbit.js";
 import type { Channel } from "amqplib";
 
 let queueReady: Promise<unknown> | null = null;
+let queueReadyChannel: Channel | null = null;
+let confirmsChannel: Channel | null = null;
 let confirmsEnabled = false;
 
 async function ensureConfirms(channel: Channel) {
+  if (confirmsChannel !== channel) {
+    confirmsEnabled = false;
+    confirmsChannel = channel;
+  }
+
   if (!confirmsEnabled) {
     try {
       await (channel as any).confirmSelect();
@@ -21,6 +28,11 @@ export async function publishLogs(logs: unknown[]) {
   if (logs.length === 0) return;
 
   const channel = await getRabbitCHanel();
+
+  if (queueReadyChannel !== channel) {
+    queueReady = null;
+    queueReadyChannel = channel;
+  }
 
   queueReady ??= channel.assertQueue(LOG_QUEUE, {
     durable: true,
@@ -38,7 +50,12 @@ export async function publishLogs(logs: unknown[]) {
   );
 
   if (!canContinue) {
-    await once(channel, "drain");
+    await Promise.race([
+      once(channel, "drain"),
+      once(channel, "close").then(() => {
+        throw new Error("RabbitMQ channel closed while draining");
+      }),
+    ]);
   }
 
   if (confirmsEnabled) {

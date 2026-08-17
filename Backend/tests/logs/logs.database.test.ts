@@ -25,7 +25,8 @@ describe("logs database insertion", () => {
 
 
         const result = await db.select()
-            .from(logs);
+            .from(logs)
+            .limit(10);
 
 
         expect(result.length)

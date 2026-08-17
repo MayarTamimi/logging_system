@@ -9,6 +9,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const logs = pgTable(
   "logs",
@@ -30,6 +31,17 @@ export const logs = pgTable(
       t.service,
       t.level,
       t.timestamp,
+    ),
+
+    index("logsTimestampIdIdx").on(t.timestamp, t.id),
+
+    index("logsServiceTimestampIdx").on(t.service, t.timestamp),
+
+    index("logsLevelTimestampIdx").on(t.level, t.timestamp),
+
+    index("logsMessageTrgmIdx").using(
+      "gin",
+      sql`${t.message} gin_trgm_ops`,
     ),
   ],
 );

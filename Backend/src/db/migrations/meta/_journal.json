@@ -15,6 +15,13 @@
       "when": 1786640400000,
       "tag": "0001_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786963964405,
+      "tag": "0002_logs_query_indexes",
+      "breakpoints": true
     }
   ]
 }

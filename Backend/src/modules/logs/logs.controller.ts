@@ -5,7 +5,7 @@ import { validationLog } from "./logs.validation.js";
 import { FastifyRequest, FastifyReply } from "fastify";
 import { getLogsQueries } from "./logs.query.schema.js";
 import { aggLogs, getLogs } from "./logs.service.js";
-import { encodeCursor } from "./logs.cursor.js";
+import { encodeCursor, InvalidCursorError } from "./logs.cursor.js";
 import { aggLogsQuerySchema } from "./logs.aggregate.schema.js";
 
 export async function ingestLogsHandler(
@@ -27,7 +27,15 @@ export async function ingestLogsHandler(
     id: randomUUID(),
   }));
 
-  await publishLogs(logsWithIds);
+  try {
+    await publishLogs(logsWithIds);
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to publish logs");
+
+    return res.status(503).send({
+      error: "Log queue unavailable",
+    });
+  }
 
   if (acceptedLogs.length === 0) {
     return res.status(400).send({
@@ -78,6 +86,12 @@ export async function getLogsHandler(req: FastifyRequest, rep: FastifyReply) {
       next_cursor: nextCursor,
     });
   } catch (error) {
+    if (error instanceof InvalidCursorError) {
+      return rep.status(400).send({
+        error: "Invalid cursor",
+      });
+    }
+
     console.error("GET /logs error:", error);
 
     return rep.status(500).send({

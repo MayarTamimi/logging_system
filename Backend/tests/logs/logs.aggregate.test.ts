@@ -164,4 +164,70 @@ describe("GET /logs/aggregate", () => {
       error: expect.any(String),
     });
   });
+
+  it("buckets into 5 minute intervals", async () => {
+    await seedLogs([
+      { timestamp: "2026-07-20T14:02:45Z" },
+      { timestamp: "2026-07-20T14:07:00Z" },
+      { timestamp: "2026-07-20T14:12:30Z" },
+      { timestamp: "2026-07-20T14:57:00Z" },
+    ]);
+
+    const response = await aggregate(
+      "since=2026-07-20T14:00:00Z&until=2026-07-20T15:00:00Z&bucket=5m",
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().buckets).toEqual([
+      { start: "2026-07-20T14:00:00Z", group: null, count: 1 },
+      { start: "2026-07-20T14:05:00Z", group: null, count: 1 },
+      { start: "2026-07-20T14:10:00Z", group: null, count: 1 },
+      { start: "2026-07-20T14:55:00Z", group: null, count: 1 },
+    ]);
+  });
+
+  it("buckets into hourly intervals", async () => {
+    await seedLogs([
+      { timestamp: "2026-07-20T14:30:00Z" },
+      { timestamp: "2026-07-20T15:10:00Z" },
+    ]);
+
+    const response = await aggregate(
+      "since=2026-07-20T14:00:00Z&until=2026-07-20T16:00:00Z&bucket=1h",
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().buckets).toEqual([
+      { start: "2026-07-20T14:00:00Z", group: null, count: 1 },
+      { start: "2026-07-20T15:00:00Z", group: null, count: 1 },
+    ]);
+  });
+
+  it("buckets into daily intervals", async () => {
+    await seedLogs([
+      { timestamp: "2026-07-20T14:30:00Z" },
+      { timestamp: "2026-07-21T01:00:00Z" },
+    ]);
+
+    const response = await aggregate(
+      "since=2026-07-20T00:00:00Z&until=2026-07-22T00:00:00Z&bucket=1d",
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().buckets).toEqual([
+      { start: "2026-07-20T00:00:00Z", group: null, count: 1 },
+      { start: "2026-07-21T00:00:00Z", group: null, count: 1 },
+    ]);
+  });
+
+  it("returns an empty buckets array when no logs match the range", async () => {
+    await seedLogs([{ timestamp: "2026-07-20T14:00:00Z" }]);
+
+    const response = await aggregate(
+      "since=2026-07-21T00:00:00Z&until=2026-07-22T00:00:00Z&bucket=1m",
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ buckets: [] });
+  });
 });

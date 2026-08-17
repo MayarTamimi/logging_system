@@ -1,7 +1,7 @@
 import { insertLogs } from "../modules/logs/logs.service.js";
 import { LOG_QUEUE } from "../queue/constant.js";
 import { getRabbitCHanel } from "../queue/rabbit.js";
-import type { ConsumeMessage } from "amqplib";
+import type { Channel, ConsumeMessage } from "amqplib";
 
 function readPositiveIntEnv(name: string, defaultValue: number) {
   const value = Number(process.env[name]);
@@ -21,6 +21,17 @@ const PREFETCH = readPositiveIntEnv("WORKER_PREFETCH", 1000);
 const BATCH_MESSAGE_COUNT = readPositiveIntEnv("WORKER_BATCH_MESSAGES", 500);
 const BATCH_TIMEOUT_MS = readPositiveIntEnv("WORKER_BATCH_TIMEOUT_MS", 50);
 const LOG_BATCHES = readBooleanEnv("WORKER_LOG_BATCHES", false);
+const RESTART_DELAY_MS = readPositiveIntEnv("WORKER_RESTART_DELAY_MS", 1000);
+const RESTART_MAX_DELAY_MS = readPositiveIntEnv(
+  "WORKER_RESTART_MAX_DELAY_MS",
+  10000,
+);
+
+let stopped = false;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function parseLogBatch(message: ConsumeMessage) {
   const payload = JSON.parse(message.content.toString());
@@ -32,19 +43,7 @@ function parseLogBatch(message: ConsumeMessage) {
   return [payload];
 }
 
-export async function startConsumer() {
-  const channel = await getRabbitCHanel();
-
-  await channel.assertQueue(LOG_QUEUE, {
-    durable: true,
-  });
-
-  await channel.prefetch(PREFETCH);
-
-  console.log(
-    `Worker listening with prefetch=${PREFETCH}, batchMessages=${BATCH_MESSAGE_COUNT}, batchTimeoutMs=${BATCH_TIMEOUT_MS}`,
-  );
-
+function buildBatchProcessor(channel: Channel) {
   let messages: ConsumeMessage[] = [];
   let timer: NodeJS.Timeout | null = null;
   let processing = false;
@@ -59,6 +58,7 @@ export async function startConsumer() {
   function armBatchTimer() {
     if (!timer) {
       timer = setTimeout(() => {
+        timer = null;
         processBatches(true).catch((error) => {
           console.error("Batch processing failed:", error);
         });
@@ -108,7 +108,13 @@ export async function startConsumer() {
           console.error("Batch processing failed:", error);
 
           for (const message of batch) {
-            channel.nack(message, false, true);
+            try {
+              channel.nack(message, false, true);
+            } catch (nackError) {
+              // Channel may already be closed; unacked messages are
+              // requeued automatically by the broker in that case.
+              console.error("Failed to nack message:", nackError);
+            }
           }
         }
       }
@@ -123,7 +129,7 @@ export async function startConsumer() {
     }
   }
 
-  channel.consume(LOG_QUEUE, async (message: ConsumeMessage | null) => {
+  return (message: ConsumeMessage | null) => {
     if (!message) return;
 
     messages.push(message);
@@ -133,5 +139,62 @@ export async function startConsumer() {
     } else {
       armBatchTimer();
     }
-  });
+  };
+}
+
+export async function startConsumer() {
+  let restartDelayMs = RESTART_DELAY_MS;
+
+  while (!stopped) {
+    try {
+      const channel = await getRabbitCHanel();
+
+      await channel.assertQueue(LOG_QUEUE, {
+        durable: true,
+      });
+
+      await channel.prefetch(PREFETCH);
+
+      console.log(
+        `Worker listening with prefetch=${PREFETCH}, batchMessages=${BATCH_MESSAGE_COUNT}, batchTimeoutMs=${BATCH_TIMEOUT_MS}`,
+      );
+
+      const onMessage = buildBatchProcessor(channel);
+
+      await new Promise<void>((resolve) => {
+        const onChannelClose = () => {
+          channel.off("close", onChannelClose);
+          resolve();
+        };
+
+        channel.on("close", onChannelClose);
+
+        void channel.consume(LOG_QUEUE, onMessage).catch((error) => {
+          console.error("Failed to register consumer:", error);
+          onChannelClose();
+        });
+      });
+
+      restartDelayMs = RESTART_DELAY_MS;
+
+      if (!stopped) {
+        console.error(
+          "RabbitMQ channel closed; reconnecting consumer...",
+        );
+      }
+    } catch (error) {
+      console.error("Worker connection error:", error);
+    }
+
+    if (stopped) {
+      break;
+    }
+
+    await sleep(restartDelayMs);
+    restartDelayMs = Math.min(restartDelayMs * 2, RESTART_MAX_DELAY_MS);
+  }
+}
+
+export function stopConsumer() {
+  stopped = true;
 }
