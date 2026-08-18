@@ -114,3 +114,4 @@ cleanup job; worker scaling does not create extra cleanup schedulers.
 - Worker CPU, insert latency, and whether queue depth drains after each stress stage.
 - Load-test rejected/failed requests and p95/p99 latency.
 - Retention cleanup delete count and Postgres I/O during cleanup windows.
+- ...
