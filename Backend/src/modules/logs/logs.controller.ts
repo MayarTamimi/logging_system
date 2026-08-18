@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { publishLogs } from "../../queue/publisher.js";
 import { ingestLogsSchema } from "./logs.schema.js";
 import { validationLog } from "./logs.validation.js";
@@ -22,13 +21,8 @@ export async function ingestLogsHandler(
 
   const { acceptedLogs, rejectedLogs } = validationLog(body.data.logs);
 
-  const logsWithIds = acceptedLogs.map((log) => ({
-    ...log,
-    id: randomUUID(),
-  }));
-
   try {
-    await publishLogs(logsWithIds);
+    await publishLogs(acceptedLogs);
   } catch (error) {
     req.log.error({ err: error }, "Failed to publish logs");
 

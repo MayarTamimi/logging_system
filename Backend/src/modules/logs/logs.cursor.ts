@@ -1,6 +1,6 @@
 export type LogCursor = {
   timestamp: string;
-  id: string;
+  id: number;
 };
 
 export class InvalidCursorError extends Error {
@@ -20,14 +20,18 @@ export function decodeCursor(cursor: string): LogCursor {
 
     const parsed = JSON.parse(decoded);
 
-    if (
-      typeof parsed.timestamp !== "string" ||
-      typeof parsed.id !== "string"
-    ) {
+    if (typeof parsed.timestamp !== "string") {
       throw new InvalidCursorError();
     }
 
-    return parsed;
+    const id =
+      typeof parsed.id === "number" ? parsed.id : Number(parsed.id);
+
+    if (!Number.isInteger(id) || id < 0) {
+      throw new InvalidCursorError();
+    }
+
+    return { timestamp: parsed.timestamp, id };
   } catch {
     throw new InvalidCursorError();
   }

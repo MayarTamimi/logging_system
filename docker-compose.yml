@@ -46,6 +46,8 @@ services:
       WORKER_PREFETCH: 1000
       WORKER_BATCH_MESSAGES: 500
       WORKER_BATCH_TIMEOUT_MS: 50
+      WORKER_COUNT_FLUSH_INTERVAL_MS: 3000
+      WORKER_COUNT_BUFFER_MAX: 20000
       WORKER_LOG_BATCHES: "true"
     depends_on:
       migrate:
@@ -83,6 +85,8 @@ services:
       - autovacuum_vacuum_scale_factor=0.05
       - -c
       - autovacuum_vacuum_threshold=1000
+      - -c
+      - synchronous_commit=off
 
     environment:
       POSTGRES_USER: postgres

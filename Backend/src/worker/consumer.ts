@@ -1,4 +1,8 @@
-import { insertLogsWithCounts } from "../modules/logs/logs.service.js";
+import {
+  insertLogs,
+  insertLogCounts,
+} from "../modules/logs/logs.service.js";
+import type { LogCountRow } from "../modules/logs/logs.service.js";
 import { LOG_QUEUE } from "../queue/constant.js";
 import { getRabbitCHanel } from "../queue/rabbit.js";
 import type { Channel, ConsumeMessage } from "amqplib";
@@ -26,8 +30,66 @@ const RESTART_MAX_DELAY_MS = readPositiveIntEnv(
   "WORKER_RESTART_MAX_DELAY_MS",
   10000,
 );
+const COUNT_FLUSH_INTERVAL_MS = readPositiveIntEnv(
+  "WORKER_COUNT_FLUSH_INTERVAL_MS",
+  3000,
+);
+const COUNT_BUFFER_MAX_ENTRIES = readPositiveIntEnv(
+  "WORKER_COUNT_BUFFER_MAX",
+  20000,
+);
 
 let stopped = false;
+
+let countBuffer = new Map<string, number>();
+let countFlushTimer: NodeJS.Timeout | null = null;
+let flushingCounts = false;
+
+function pushCountRows(
+  rows: Array<{ timestamp: Date; service: string; level: string }>,
+) {
+  for (const row of rows) {
+    const bucket = new Date(
+      Math.floor(row.timestamp.getTime() / 60_000) * 60_000,
+    );
+
+    const key = `${bucket.toISOString()}\u0000${row.service}\u0000${row.level}`;
+
+    countBuffer.set(key, (countBuffer.get(key) ?? 0) + 1);
+  }
+}
+
+async function flushCounts() {
+  if (flushingCounts || countBuffer.size === 0) return;
+
+  flushingCounts = true;
+
+  const rows: LogCountRow[] = [...countBuffer.entries()].map(([key, count]) => {
+    const [bucket, service, level] = key.split("\u0000");
+
+    return { bucket: new Date(bucket), service, level, count };
+  });
+
+  countBuffer = new Map();
+
+  try {
+    await insertLogCounts(rows);
+  } finally {
+    flushingCounts = false;
+  }
+}
+
+function armCountFlushTimer() {
+  if (countFlushTimer) return;
+
+  countFlushTimer = setTimeout(() => {
+    countFlushTimer = null;
+    armCountFlushTimer();
+    void flushCounts().catch((error) => {
+      console.error("Count flush failed:", error);
+    });
+  }, COUNT_FLUSH_INTERVAL_MS);
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -69,7 +131,9 @@ function buildBatchProcessor(channel: Channel) {
   async function processBatch(batch: ConsumeMessage[]) {
     const logs = batch.flatMap(parseLogBatch);
 
-    await insertLogsWithCounts(logs);
+    const rows = await insertLogs(logs);
+
+    pushCountRows(rows);
 
     for (const message of batch) {
       channel.ack(message);
@@ -77,8 +141,12 @@ function buildBatchProcessor(channel: Channel) {
 
     if (LOG_BATCHES) {
       console.log(
-        `Batch inserted: ${logs.length} logs from ${batch.length} messages`,
+        `Batch inserted: ${rows.length} logs from ${batch.length} messages`,
       );
+    }
+
+    if (countBuffer.size >= COUNT_BUFFER_MAX_ENTRIES) {
+      await flushCounts();
     }
   }
 
@@ -159,6 +227,8 @@ export async function startConsumer() {
         `Worker listening with prefetch=${PREFETCH}, batchMessages=${BATCH_MESSAGE_COUNT}, batchTimeoutMs=${BATCH_TIMEOUT_MS}`,
       );
 
+      armCountFlushTimer();
+
       const onMessage = buildBatchProcessor(channel);
 
       await new Promise<void>((resolve) => {
@@ -197,4 +267,8 @@ export async function startConsumer() {
 
 export function stopConsumer() {
   stopped = true;
+
+  void flushCounts().catch((error) => {
+    console.error("Count flush failed during shutdown:", error);
+  });
 }

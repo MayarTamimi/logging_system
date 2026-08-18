@@ -7,6 +7,9 @@ let queueReady: Promise<unknown> | null = null;
 let queueReadyChannel: Channel | null = null;
 let confirmsChannel: Channel | null = null;
 let confirmsEnabled = false;
+let pendingConfirms = 0;
+
+const CONFIRM_BATCH = 50;
 
 async function ensureConfirms(channel: Channel) {
   if (confirmsChannel !== channel) {
@@ -59,10 +62,16 @@ export async function publishLogs(logs: unknown[]) {
   }
 
   if (confirmsEnabled) {
-    try {
-      await (channel as any).waitForConfirms();
-    } catch {
-      // Ignore confirm errors in test environments
+    pendingConfirms += 1;
+
+    if (pendingConfirms >= CONFIRM_BATCH) {
+      try {
+        await (channel as any).waitForConfirms();
+      } catch {
+        // Ignore confirm errors in test environments
+      } finally {
+        pendingConfirms = 0;
+      }
     }
   }
 }

@@ -16,16 +16,28 @@ function messageSearch(value: string) {
 
 const INSERT_CHUNK_SIZE = 1000;
 
+export type NormalizedLog = {
+  timestamp: Date;
+  level: string;
+  service: string;
+  message: string;
+  attributes: Record<string, string | number | boolean>;
+};
+
 function normalizeLogs(entryLogs: logInput[]) {
   return entryLogs.map((log) => ({
-    ...log,
     timestamp: new Date(log.timestamp),
+    level: log.level,
+    service: log.service,
+    message: log.message,
     attributes: log.attributes ?? {},
   }));
 }
 
-export async function insertLogs(entryLogs: logInput[]) {
-  if (entryLogs.length === 0) return;
+export async function insertLogs(
+  entryLogs: logInput[],
+): Promise<NormalizedLog[]> {
+  if (entryLogs.length === 0) return [];
 
   const rows = normalizeLogs(entryLogs);
 
@@ -35,49 +47,63 @@ export async function insertLogs(entryLogs: logInput[]) {
       .values(rows.slice(i, i + INSERT_CHUNK_SIZE))
       .onConflictDoNothing();
   }
+
+  return rows;
 }
 
-export async function insertLogsWithCounts(entryLogs: logInput[]) {
-  if (entryLogs.length === 0) return;
+export type LogCountRow = {
+  bucket: Date;
+  service: string;
+  level: string;
+  count: number;
+};
 
-  const rows = normalizeLogs(entryLogs);
+export function countRowsFromLogs(rows: NormalizedLog[]): LogCountRow[] {
+  const counts = new Map<string, LogCountRow>();
 
-  await db.transaction(async (tx) => {
-    for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
-      await tx
-        .insert(logs)
-        .values(rows.slice(i, i + INSERT_CHUNK_SIZE))
-        .onConflictDoNothing();
+  for (const log of rows) {
+    const bucket = new Date(
+      Math.floor(log.timestamp.getTime() / 60_000) * 60_000,
+    );
+
+    const key = `${bucket.toISOString()}\u0000${log.service}\u0000${log.level}`;
+
+    const existing = counts.get(key);
+
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counts.set(key, {
+        bucket,
+        service: log.service,
+        level: log.level,
+        count: 1,
+      });
     }
+  }
 
-    const counts = new Map<string, number>();
+  return [...counts.values()];
+}
 
-    for (const log of rows) {
-      const minute = new Date(
-        Math.floor(log.timestamp.getTime() / 60_000) * 60_000,
-      );
+export async function insertLogCounts(countRows: LogCountRow[]) {
+  if (countRows.length === 0) return;
 
-      const key = `${minute.toISOString()}\u0000${log.service}\u0000${log.level}`;
+  const sorted = [...countRows].sort(
+    (a, b) =>
+      a.bucket.getTime() - b.bucket.getTime() ||
+      a.service.localeCompare(b.service) ||
+      a.level.localeCompare(b.level),
+  );
 
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-
-    const countRows = [...counts.entries()].map(([key, count]) => {
-      const [bucket, service, level] = key.split("\u0000");
-
-      return { bucket: new Date(bucket), service, level, count };
-    });
-
-    for (let i = 0; i < countRows.length; i += INSERT_CHUNK_SIZE) {
-      await tx
-        .insert(logCounts)
-        .values(countRows.slice(i, i + INSERT_CHUNK_SIZE))
-        .onConflictDoUpdate({
-          target: [logCounts.bucket, logCounts.service, logCounts.level],
-          set: { count: sql`${logCounts.count} + excluded.count` },
-        });
-    }
-  });
+  for (let i = 0; i < sorted.length; i += INSERT_CHUNK_SIZE) {
+    await db
+      .insert(logCounts)
+      .values(sorted.slice(i, i + INSERT_CHUNK_SIZE))
+      .onConflictDoUpdate({
+        target: [logCounts.bucket, logCounts.service, logCounts.level],
+        set: { count: sql`${logCounts.count} + excluded.count` },
+      });
+  }
 }
 
 export async function getLogs(query: GetLogsQuery) {

@@ -16,7 +16,9 @@ import { sql } from "drizzle-orm";
 export const logs = pgTable(
   "logs",
   {
-    id: uuid("id").defaultRandom().primaryKey(),
+    id: bigint("id", { mode: "number" })
+      .generatedAlwaysAsIdentity()
+      .primaryKey(),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
     level: varchar("level", { length: 10 }).notNull(),
     service: varchar("service", { length: 100 }).notNull(),
@@ -30,8 +32,6 @@ export const logs = pgTable(
     index("logsTimestampIdIdx").on(t.timestamp, t.id),
 
     index("logsServiceTimestampIdx").on(t.service, t.timestamp),
-
-    index("logsLevelTimestampIdx").on(t.level, t.timestamp),
   ],
 );
 
