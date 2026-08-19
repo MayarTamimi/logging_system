@@ -28,9 +28,7 @@ export const logs = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (t) => [
-    index("logsTimestampIdIdx").on(t.timestamp, t.id),
-
+(t) => [
     index("logsServiceTimestampIdx").on(t.service, t.timestamp),
   ],
 );

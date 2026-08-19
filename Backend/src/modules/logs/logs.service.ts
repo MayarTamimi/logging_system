@@ -14,7 +14,7 @@ function messageSearch(value: string) {
   return ilike(logs.message, `%${escapeLike(value)}%`);
 }
 
-const INSERT_CHUNK_SIZE = 1000;
+const INSERT_CHUNK_SIZE = 10_000;
 
 export type NormalizedLog = {
   timestamp: Date;

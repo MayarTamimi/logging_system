@@ -74,19 +74,11 @@ services:
     command:
       - postgres
       - -c
-      - shared_buffers=256MB
-      - -c
-      - effective_cache_size=512MB
-      - -c
-      - work_mem=16MB
-      - -c
-      - autovacuum_analyze_scale_factor=0.05
-      - -c
-      - autovacuum_vacuum_scale_factor=0.05
-      - -c
-      - autovacuum_vacuum_threshold=1000
-      - -c
       - synchronous_commit=off
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - max_wal_size=2GB
 
     environment:
       POSTGRES_USER: postgres
