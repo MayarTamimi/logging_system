@@ -43,6 +43,13 @@
       "when": 1787080948114,
       "tag": "0005_slow_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787152471901,
+      "tag": "0006_restore_logs_timestamp_id_index",
+      "breakpoints": true
     }
   ]
 }
