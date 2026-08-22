@@ -4,6 +4,19 @@ A high-throughput log management API built with **Fastify, TypeScript, RabbitMQ,
 
 The service supports asynchronous log ingestion, efficient querying, cursor-based pagination, and fast time-bucketed aggregations using pre-computed rollups.
 
+## Tools used
+- Runtime: Node.js 22
+- Language: TypeScript
+- HTTP Framework: Fastify
+- Validation: Zod
+- ORM & Migrations: Drizzle ORM 
+- Database: PostgreSQL 17 
+- Message Queue: RabbitMQ 
+- API Docs: @fastify/swagger + Swagger UI
+- Testing: Vitest
+- Containerization: Docker + Docker Compose 
+- Load Testing: k6 
+
 ## Features
 
 - **Asynchronous ingestion** through RabbitMQ
