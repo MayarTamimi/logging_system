@@ -21,8 +21,8 @@ async function ensureConfirms(channel: Channel) {
     try {
       await (channel as any).confirmSelect();
       confirmsEnabled = true;
-    } catch {
-      // Publisher confirms not available, continue without
+    } catch(err) {
+      console.log(err)
     }
   }
 }
@@ -68,7 +68,7 @@ export async function publishLogs(logs: unknown[]) {
       try {
         await (channel as any).waitForConfirms();
       } catch {
-        // Ignore confirm errors in test environments
+        //
       } finally {
         pendingConfirms = 0;
       }

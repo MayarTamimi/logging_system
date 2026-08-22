@@ -41,8 +41,8 @@ async function isReady() {
       messageCount: q.messageCount,
       consumerCount: q.consumerCount,
     };
-  } catch {
-    // checkQueue not available
+  } catch(err) {
+    console.log(err)
   }
 
   return {

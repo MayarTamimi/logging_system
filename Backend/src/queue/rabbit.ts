@@ -37,8 +37,6 @@ async function connect(): Promise<ChannelModel> {
       });
 
       conn.on("error", (error) => {
-        // Never let amqplib errors crash the process; the next call
-        // to getRabbitCHanel will transparently reconnect.
         console.error("RabbitMQ connection error:", error);
         resetRabbitState();
       });

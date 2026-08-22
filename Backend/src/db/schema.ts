@@ -11,7 +11,6 @@ import {
   primaryKey,
   bigint,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 export const logs = pgTable(
   "logs",
