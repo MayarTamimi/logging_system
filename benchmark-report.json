@@ -1,15 +1,15 @@
 {
   "tool": "@foothill/logs-benchmark",
-  "generatedAt": "2026-08-18T19:01:11.274Z",
+  "generatedAt": "2026-08-22T06:43:49.464Z",
   "mode": "compose",
   "endpoint": "http://127.0.0.1:8080",
   "durationScale": 1,
   "resourceLimitsEnforced": true,
-  "generator": "grafana/k6:0.54.0 in Docker on lgbench-5b0522b0ca_default (cpus 4, 1g)",
+  "generator": "grafana/k6:0.54.0 in Docker on lgbench-c9567122af_default (cpus 4, 1g)",
   "generatorIsolated": true,
   "engine": {
-    "cpus": 16,
-    "memoryBytes": 7975657472,
+    "cpus": 8,
+    "memoryBytes": 6213177344,
     "operatingSystem": "Docker Desktop",
     "requiredCpus": 5.5,
     "sufficient": true,
@@ -17,8 +17,8 @@
     "memorySufficient": true
   },
   "machineSpeed": {
-    "workUnitsPerSecond": 21.364477994587666,
-    "factor": 0.4108553460497628
+    "workUnitsPerSecond": 34.26222019186843,
+    "factor": 0.6588888498436236
   },
   "correctness": {
     "passed": 15,
@@ -121,69 +121,69 @@
     {
       "scenario": "load",
       "status": "completed",
-      "logsPerSecond": 14755,
+      "logsPerSecond": 14999.166666666666,
       "errorRate": 0,
-      "latencyP95Ms": 290.7782315,
-      "aggregateP95Ms": 891.1999999999935,
-      "readAfterWriteSuccessRate": 0.013086150490730643,
+      "latencyP95Ms": 1.3603128,
+      "aggregateP95Ms": 3,
+      "readAfterWriteSuccessRate": 0.0022222222222222222,
       "thresholdPassed": true,
       "consistencyPassed": true,
-      "acceptedRecords": 1770600,
-      "visibleRecords": 1770600,
+      "acceptedRecords": 1799900,
+      "visibleRecords": 1799900,
       "offeredLogsPerSecond": 15000,
-      "droppedIterations": 293,
-      "generatorLimited": true,
+      "droppedIterations": 0,
+      "generatorLimited": false,
       "serviceLimited": false
     },
     {
       "scenario": "stress",
       "status": "completed",
-      "logsPerSecond": 18802,
+      "logsPerSecond": 20999.333333333332,
       "errorRate": 0,
-      "latencyP95Ms": 1225.8121787999999,
-      "aggregateP95Ms": 11858.599999999973,
-      "readAfterWriteSuccessRate": 0.006904487917146145,
-      "thresholdPassed": false,
-      "consistencyPassed": false,
-      "acceptedRecords": 2820300,
-      "visibleRecords": 2389100,
+      "latencyP95Ms": 1.7644673,
+      "aggregateP95Ms": 4,
+      "readAfterWriteSuccessRate": 0.0012121212121212121,
+      "thresholdPassed": true,
+      "consistencyPassed": true,
+      "acceptedRecords": 3149900,
+      "visibleRecords": 3149900,
       "offeredLogsPerSecond": 21000,
-      "droppedIterations": 3208,
-      "generatorLimited": true,
+      "droppedIterations": 0,
+      "generatorLimited": false,
       "serviceLimited": false
     },
     {
       "scenario": "spike",
       "status": "completed",
-      "logsPerSecond": 15212,
+      "logsPerSecond": 15375,
       "errorRate": 0,
-      "latencyP95Ms": 305.2331690999997,
-      "aggregateP95Ms": 2338.7499999999986,
-      "readAfterWriteSuccessRate": 0.004571428571428572,
+      "latencyP95Ms": 1.3745081,
+      "aggregateP95Ms": 2.049999999999982,
+      "readAfterWriteSuccessRate": 0,
       "thresholdPassed": true,
       "consistencyPassed": true,
-      "acceptedRecords": 1521200,
-      "visibleRecords": 1521200,
+      "acceptedRecords": 1537500,
+      "visibleRecords": 1537500,
       "offeredLogsPerSecond": 15375,
-      "droppedIterations": 162,
-      "generatorLimited": true,
+      "droppedIterations": 0,
+      "generatorLimited": false,
       "serviceLimited": false
     },
     {
       "scenario": "breakpoint",
       "status": "completed",
-      "logsPerSecond": 19449.166666666668,
+      "logsPerSecond": 24373.333333333332,
       "errorRate": 0,
-      "latencyP95Ms": 848.7679089,
-      "aggregateP95Ms": 18115.94999999999,
-      "readAfterWriteSuccessRate": 0.003146303093864709,
+      "latencyP95Ms": 11.180777099999974,
+      "aggregateP95Ms": 5,
+      "readAfterWriteSuccessRate": 0.0013333333333333333,
       "thresholdPassed": true,
-      "consistencyPassed": false,
-      "acceptedRecords": 2333900,
-      "visibleRecords": 1417800,
+      "consistencyPassed": true,
+      "acceptedRecords": 2924800,
+      "visibleRecords": 2924800,
       "offeredLogsPerSecond": 24375,
-      "droppedIterations": 5909,
-      "generatorLimited": true,
+      "droppedIterations": 0,
+      "generatorLimited": false,
       "serviceLimited": false
     }
   ],
@@ -192,7 +192,7 @@
     "eligibility": {
       "eligible": true
     },
-    "score": 80.55357520555555,
+    "score": 97.4448888888889,
     "maximumScore": 100,
     "correctness": {
       "points": 15,
@@ -204,26 +204,26 @@
       }
     },
     "performance": {
-      "points": 42.55357520555555,
+      "points": 47.49888888888889,
       "maximum": 50,
-      "percentage": 85.1071504111111,
+      "percentage": 94.99777777777778,
       "components": {
-        "throughput": 0.3934666666666667,
+        "throughput": 0.39997777777777777,
         "errors": 0.3,
-        "latency": 0.15760483744444445,
-        "sustainedBonus": 0
+        "latency": 0.2,
+        "sustainedBonus": 0.05
       }
     },
     "queries": {
-      "points": 3,
+      "points": 14.946,
       "maximum": 15,
-      "percentage": 20,
+      "percentage": 99.64,
       "components": {
-        "aggregateLatency": 0,
-        "eventualConsistencyPassedScenarios": 2,
+        "aggregateLatency": 0.994,
+        "eventualConsistencyPassedScenarios": 4,
         "eventualConsistencyTotalScenarios": 4,
-        "eventualConsistencyPoints": 3,
-        "readAfterWrite": 0.013086150490730643
+        "eventualConsistencyPoints": 6,
+        "readAfterWrite": 0.0022222222222222222
       }
     },
     "reliability": {
@@ -237,7 +237,7 @@
     },
     "calculation": {
       "correctnessRatio": 1,
-      "uncappedScore": 80.55357520555555,
+      "uncappedScore": 97.4448888888889,
       "appliedCap": null
     }
   }

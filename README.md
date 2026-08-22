@@ -1,117 +1,140 @@
-# logging_system
+# Logs Service
 
-Fastify + RabbitMQ + Postgres log ingestion backend.
+A high-throughput log management API built with **Fastify, TypeScript, RabbitMQ, and PostgreSQL**.
 
-## Load testing and worker scaling
+The service supports asynchronous log ingestion, efficient querying, cursor-based pagination, and fast time-bucketed aggregations using pre-computed rollups.
 
-The API publishes log batches to a durable RabbitMQ queue using persistent messages. Workers consume from the queue and insert logs into Postgres in batches.
+## Features
 
-Start the stack with the worker replica count configured in
-`docker-compose.yml`:
+- **Asynchronous ingestion** through RabbitMQ
+- **Batch log processing** with partial validation and acceptance
+- **PostgreSQL storage** for raw logs
+- **Pre-computed rollups** for fast time-based aggregations
+- **Cursor-based pagination** for stable, gap-free queries
+- **Rich filtering** by service, level, time range, message, and JSON attributes
+- **Optional API-key authentication**
+- **Automatic log retention**
+- **Swagger UI** for API documentation
+- **Health checks** covering database migrations and RabbitMQ availability
 
-```sh
+## Architecture
+
+```text
+                         ┌─────────────┐
+                         │   Client    │
+                         └──────┬──────┘
+                                │
+                           POST /logs
+                                │
+                                ▼
+                         ┌─────────────┐
+                         │ API Server  │
+                         │  Fastify    │
+                         └──────┬──────┘
+                                │
+                             publish
+                                │
+                                ▼
+                         ┌─────────────┐
+                         │  RabbitMQ   │
+                         │  log_queue  │
+                         └──────┬──────┘
+                                │
+                             consume
+                                │
+                                ▼
+                         ┌─────────────┐
+                         │   Worker    │
+                         └──────┬──────┘
+                                │
+                    ┌───────────┴───────────┐
+                    ▼                       ▼
+             ┌─────────────┐        ┌─────────────┐
+             │ PostgreSQL  │        │ log_counts  │
+             │ raw logs    │        │  rollups    │
+             └─────────────┘        └─────────────┘
+```
+
+The API receives and validates logs, then publishes them to RabbitMQ. A separate worker consumes messages in batches and stores the logs in PostgreSQL while maintaining pre-aggregated count data for fast aggregation queries.
+
+## API
+
+| Method | Endpoint          | Description                     |
+| ------ | ----------------- | ------------------------------- |
+| `POST` | `/logs`           | Ingest a batch of logs          |
+| `GET`  | `/logs`           | Query stored logs               |
+| `GET`  | `/logs/aggregate` | Return time-bucketed log counts |
+| `GET`  | `/health`         | Check service readiness         |
+
+## Benchmark Results
+
+The service was benchmarked using `@foothill/logs-benchmark` with k6.
+
+### Final Score
+
+**97.44 / 100**
+
+| Category    |     Score | Maximum |
+| ----------- | --------: | ------: |
+| Correctness |     15.00 |      15 |
+| Performance |     47.50 |      50 |
+| Queries     |     14.95 |      15 |
+| Reliability |     20.00 |      20 |
+| **Total**   | **97.44** | **100** |
+
+### Correctness
+
+**15/15 correctness checks passed.**
+
+The tested functionality included:
+
+- Health checks
+- Single and batch ingestion
+- Partial invalid-log handling
+- Empty and malformed requests
+- Log querying and filtering
+- Stable pagination
+- Cursor pagination
+- Aggregation
+- Grouping
+- Invalid parameter handling
+
+### Load Performance
+
+| Scenario   |    Throughput | Ingestion p95 | Aggregate p95 | Error Rate |
+| ---------- | ------------: | ------------: | ------------: | ---------: |
+| Load       | 14,999 logs/s |       1.36 ms |       3.00 ms |         0% |
+| Stress     | 20,999 logs/s |       1.76 ms |       4.00 ms |         0% |
+| Spike      | 15,375 logs/s |       1.37 ms |       2.05 ms |         0% |
+| Breakpoint | 24,373 logs/s |      11.18 ms |       5.00 ms |         0% |
+
+- Full report available in [`benchmark-report.json`](benchmark-report.json)
+
+## Quick Start
+
+### Docker Compose (recommended)
+
+```bash
 docker compose up --build
 ```
 
-The default Compose file uses two worker replicas:
+This starts the full stack:
 
-```yaml
-worker:
-  deploy:
-    replicas: 2
+| Service  | Port         | Notes                                            |
+| -------- | ------------ | ------------------------------------------------ |
+| api      | 8080         | REST API + Swagger UI                            |
+| worker   | —            | Queue consumer (no exposed port)                 |
+| postgres | 5433         | Mapped to host `5433` (container 5432)           |
+| rabbitmq | 5672 / 15672 | AMQP + management UI at `http://localhost:15672` |
+
+Migrations run automatically before the API starts.
+
+### Local development
+
+```bash
+cd Backend
+npm install
+npm run dev       # start the API server
+npm run worker    # in another terminal, start the queue consumer
+npm run db:migrate # apply database migrations
 ```
-
-Change `replicas` to `1`, `2`, or `3` before deploying if your load-test
-environment runs the Compose file as-is. You can also override it manually when
-running locally:
-
-```sh
-docker compose up --scale worker=2
-```
-
-The worker service intentionally does not set `container_name`, because Docker Compose cannot scale services that have a fixed container name.
-
-## Throughput tuning
-
-The Docker Compose defaults are tuned for higher ingestion throughput:
-
-```env
-WORKER_PREFETCH=1000
-WORKER_BATCH_MESSAGES=500
-WORKER_BATCH_TIMEOUT_MS=50
-WORKER_LOG_BATCHES=false
-FASTIFY_LOGGER=false
-```
-
-Suggested first benchmark passes:
-
-| Workers | WORKER_PREFETCH | WORKER_BATCH_MESSAGES | WORKER_BATCH_TIMEOUT_MS |
-| ------- | --------------- | --------------------- | ----------------------- |
-| 1       | 1000            | 500                   | 50                      |
-| 1       | 2000            | 1000                  | 50                      |
-| 2       | 1000            | 500                   | 50                      |
-| 2       | 1500            | 750                   | 50                      |
-
-Keep RabbitMQ durability and persistent messages enabled for reliability. If you test a non-durable or non-persistent benchmark-only mode later, label those results separately because they do not represent the same reliability behavior.
-
-## Authentication and API keys
-
-Authentication is disabled by default:
-
-```env
-AUTH_ENABLED=false
-LOADGEN_API_KEY=
-```
-
-With `AUTH_ENABLED` unset or `false`, the service behaves like the unauthenticated
-core service.
-
-When `AUTH_ENABLED=true` and `LOADGEN_API_KEY` is set, the API idempotently seeds
-that key at startup with full ingest and query permissions. Restarting the
-service does not invalidate it. If `AUTH_ENABLED=true` and `LOADGEN_API_KEY` is
-unset, the service still starts and remains healthy; it just has no seeded key.
-
-Send credentials with:
-
-```http
-Authorization: Bearer <key>
-```
-
-`X-API-Key: <key>` is also accepted. Credentials are never read from the query
-string or request body.
-
-Auth error responses keep the standard shape:
-
-| Condition | Status | Body |
-| --------- | ------ | ---- |
-| Missing or malformed credential | 401 | `{"error":"<description>"}` |
-| Invalid credential | 401 | `{"error":"<description>"}` |
-| Valid credential, insufficient scope | 403 | `{"error":"<description>"}` |
-| Rate limit or quota exceeded | 429 | `{"error":"<description>"}` plus `Retry-After` |
-
-## Retention
-
-Logs are deleted according to a configurable retention policy. The default
-Compose policy keeps 30 days of data and runs cleanup once per hour:
-
-```env
-LOG_RETENTION_ENABLED=true
-LOG_RETENTION_DAYS=30
-LOG_RETENTION_CLEANUP_INTERVAL_MS=3600000
-LOG_RETENTION_BATCH_SIZE=50000
-```
-
-Expiration is based on the log `timestamp` field. Each cleanup pass deletes up
-to `LOG_RETENTION_BATCH_SIZE` expired rows, so old backlogs are removed
-gradually instead of one large unbounded delete. The API process owns the
-cleanup job; worker scaling does not create extra cleanup schedulers.
-
-## Metrics to watch
-
-- RabbitMQ queue depth and message publish/ack rates.
-- Postgres CPU, disk I/O, WAL activity, and connection pressure.
-- API CPU, event loop saturation, request latency, and failed thresholds.
-- Worker CPU, insert latency, and whether queue depth drains after each stress stage.
-- Load-test rejected/failed requests and p95/p99 latency.
-- Retention cleanup delete count and Postgres I/O during cleanup windows.
-- ...
